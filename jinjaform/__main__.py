@@ -37,49 +37,35 @@ commands_using_backend = (
 
 workspace_enabled = False
 
-try:
+if args:
 
-    if args:
+    if not set(commands_bypassed).intersection(args):
 
-        if not set(commands_bypassed).intersection(args):
+        if cwd != project_root and (cwd + '/').startswith(project_root + '/'):
 
-            if cwd != project_root and (cwd + '/').startswith(project_root + '/'):
+            for command in commands_forbidden:
+                if command in args:
+                    log.bad('{} not allowed', command)
+                    sys.exit(1)
 
-                for command in commands_forbidden:
-                    if command in args:
-                        log.bad('{} not allowed', command)
-                        sys.exit(1)
+            git.check()
 
-                git.check()
+            workspace.clean()
+            workspace_enabled = True
+            workspace.create()
 
-                workspace.clean()
-                workspace_enabled = True
-                workspace.create()
+            if set(commands_using_backend).intersection(args):
+                aws.credentials_setup()
+                if 'init' in args:
+                    aws.backend_setup()
 
-                if set(commands_using_backend).intersection(args):
-                    aws.credentials_setup()
-                    if 'init' in args:
-                        aws.backend_setup()
+        else:
 
-            else:
+            log.bad('not in deployment target directory, aborting')
+            sys.exit(1)
 
-                log.bad('not in deployment target directory, aborting')
-                sys.exit(1)
+if workspace_enabled:
+    os.chdir(jinjaform_dir)
 
-    if workspace_enabled:
-        os.chdir(jinjaform_dir)
-
-    try:
-
-        log.ok('running terraform')
-        sys.exit(terraform.execute(terraform_bin, args, env))
-
-    finally:
-
-        if workspace_enabled:
-            os.chdir(cwd)
-
-finally:
-
-    if workspace_enabled:
-        workspace.clean()
+log.ok('running terraform')
+sys.exit(terraform.execute(terraform_bin, args, env))

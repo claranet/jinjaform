@@ -88,25 +88,9 @@ def _remove(path):
 
 def clean():
     if os.path.exists(jinjaform_dir):
-        jinjaform_empty = True
         for name in os.listdir(jinjaform_dir):
-            path = os.path.join(jinjaform_dir, name)
-            if name == '.terraform':
-                terraform_empty = True
-                for sub_name in os.listdir(path):
-                    sub_path = os.path.join(path, sub_name)
-                    if os.path.islink(sub_path):
-                        os.remove(sub_path)
-                    else:
-                        terraform_empty = False
-                if terraform_empty:
-                    os.rmdir(path)
-                else:
-                    jinjaform_empty = False
-            else:
-                _remove(path)
-        if jinjaform_empty:
-            os.rmdir(jinjaform_dir)
+            if name != '.terraform':
+                _remove(os.path.join(jinjaform_dir, name))
 
 
 def create():
@@ -121,6 +105,7 @@ def create():
     # TODO: remove later:
     # Create a .terraform/root symlink too.
     root_link = os.path.join(terraform_dir, 'root')
+    _remove(root_link)
     os.symlink(project_root, root_link)
 
     # Create a shared modules directory for the entire project.
