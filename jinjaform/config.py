@@ -18,7 +18,7 @@ project_root = os.environ['JINJAFORM_PROJECT_ROOT']
 jinjaform_dir = os.path.join(cwd, '.jinjaform')
 jinjaform_root = os.path.join(project_root, '.jinjaform')
 terraform_bin = os.environ['JINJAFORM_TERRAFORM_BIN']
-terraform_dir = os.path.join(cwd, '.terraform')
+terraform_dir = os.path.join(jinjaform_dir, '.terraform')
 
 aws_profiles = set()
 tf_vars = {}
@@ -34,10 +34,12 @@ def read(_done=set()):
 
     default_vars = {}
 
-    for name in os.listdir():
+    for name in os.listdir(jinjaform_dir):
 
         if name in _done:
             continue
+
+        path = os.path.join(jinjaform_dir, name)
 
         if name.lower().endswith('.tf'):
 
@@ -46,7 +48,7 @@ def read(_done=set()):
             inside_terraform = False
             inside_variable = None
 
-            for line in terraform.fmt(terraform_bin, name).splitlines():
+            for line in terraform.fmt(terraform_bin, path).splitlines():
 
                 if inside_aws_provider:
                     if line == '}':
@@ -63,9 +65,9 @@ def read(_done=set()):
                         else:
                             match = re.match(r'\s+(.+?)\s+=\s+"?(.+?)"?$', line)
                             if match:
-                                name = match.group(1)
+                                key = match.group(1)
                                 value = match.group(2)
-                                s3_backend[name] = value
+                                s3_backend[key] = value
                     else:
                         if line == '}':
                             inside_terraform = False
@@ -91,12 +93,12 @@ def read(_done=set()):
 
         elif name.lower().endswith('.tfvars'):
 
-            for line in terraform.fmt(terraform_bin, name).splitlines():
+            for line in terraform.fmt(terraform_bin, path).splitlines():
                 match = re.match(r'^([^\s]+)\s+=\s+"?(.*?)"?$', line)
                 if match:
-                    name = match.group(1)
+                    key = match.group(1)
                     value = match.group(2)
-                    tf_vars[name] = value
+                    tf_vars[key] = value
 
             _done.add(name)
 

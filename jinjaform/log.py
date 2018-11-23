@@ -11,11 +11,11 @@ def bad(message, *args, **kwargs):
     init()
     if args or kwargs:
         message = message.format(*args, **kwargs)
-    print(colorama.Fore.RED + '[terraform wrapper] ' + message + colorama.Style.RESET_ALL)
+    print(colorama.Fore.RED + '[jinjaform] ' + message + colorama.Style.RESET_ALL)
 
 
 def ok(message, *args, **kwargs):
     init()
     if args or kwargs:
         message = message.format(*args, **kwargs)
-    print(colorama.Fore.CYAN + '[terraform wrapper] ' + message + colorama.Style.RESET_ALL)
+    print(colorama.Fore.CYAN + '[jinjaform] ' + message + colorama.Style.RESET_ALL)
