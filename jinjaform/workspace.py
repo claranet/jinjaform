@@ -102,12 +102,6 @@ def create():
     root_link = os.path.join(jinjaform_dir, '.root')
     os.symlink(project_root, root_link)
 
-    # TODO: remove later:
-    # Create a .terraform/root symlink too.
-    root_link = os.path.join(terraform_dir, 'root')
-    _remove(root_link)
-    os.symlink(project_root, root_link)
-
     # Create a shared modules directory for the entire project.
     module_cache_dir = os.path.join(jinjaform_root, 'modules')
     os.makedirs(module_cache_dir, exist_ok=True)
