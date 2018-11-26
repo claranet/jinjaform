@@ -1,0 +1,3 @@
+env = "stage"
+
+envtype = "nonprod"

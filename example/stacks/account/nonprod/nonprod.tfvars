@@ -1,0 +1,3 @@
+env = "nonprod"
+
+envtype = "nonprod"
