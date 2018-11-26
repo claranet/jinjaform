@@ -19,7 +19,7 @@ build: $(SDIST) $(WHEEL)
 
 .PHONY: install
 install: $(WHEEL)
-	pip install --user $(WHEEL)
+	pip install $(WHEEL)
 
 .PHONY: uninstall
 uninstall:

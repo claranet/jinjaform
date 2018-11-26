@@ -1,0 +1,3 @@
+variable "two" {
+  type = "string"
+}
