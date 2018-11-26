@@ -1,11 +1,10 @@
 import boto3
 import botocore
 import os
-import re
 import sys
 
 from jinjaform import log
-from jinjaform.config import aws_profiles, env, s3_backend, sessions, tf_vars
+from jinjaform.config import aws_provider, env, s3_backend, sessions
 
 
 def backend_setup():
@@ -116,47 +115,29 @@ def credentials_setup():
 
     """
 
-    # Prevent multiple AWS profile in a single stack.
-    # I could not get Terraform to use a shared credentials
-    # file with multiple profiles and providers, so I'm using
-    # environment variables instead.
+    profile = aws_provider.get('profile')
+    if not profile:
+        return
 
-    profiles = set()
-    for profile in aws_profiles:
-        for find, name in re.findall(r'(\${\s*var\.([^}]+?)\s*})', profile):
-            if name in tf_vars:
-                replace = tf_vars[name]
-                profile = profile.replace(find, replace)
-            else:
-                log.bad('could not process aws provider profile {}', profile)
-                sys.exit(1)
-        profiles.add(profile)
+    log.ok('aws-profile: {}', profile)
 
-    if len(profiles) > 1:
-        log.bad('only 1 aws profile can be used per target')
+    botocore_session = botocore.session.Session(profile=profile)
+    cli_cache_path = os.path.join(os.path.expanduser('~'), '.aws/cli/cache')
+    cli_cache = botocore.credentials.JSONFileCache(cli_cache_path)
+    botocore_session.get_component('credential_provider').get_provider('assume-role').cache = cli_cache
+    session = boto3.Session(botocore_session=botocore_session)
+
+    sessions[profile] = session
+
+    try:
+        creds = session.get_credentials().get_frozen_credentials()
+    except KeyboardInterrupt:
+        print()
+        log.bad('aborted')
         sys.exit(1)
 
-    for profile in sorted(profiles):
-
-        log.ok('aws-profile: {}', profile)
-
-        botocore_session = botocore.session.Session(profile=profile)
-        cli_cache_path = os.path.join(os.path.expanduser('~'), '.aws/cli/cache')
-        cli_cache = botocore.credentials.JSONFileCache(cli_cache_path)
-        botocore_session.get_component('credential_provider').get_provider('assume-role').cache = cli_cache
-        session = boto3.Session(botocore_session=botocore_session)
-
-        sessions[profile] = session
-
-        try:
-            creds = session.get_credentials().get_frozen_credentials()
-        except KeyboardInterrupt:
-            print()
-            log.bad('aborted')
-            sys.exit(1)
-
-        env['AWS_PROFILE'] = profile
-        env['AWS_DEFAULT_PROFILE'] = profile
-        env['AWS_ACCESS_KEY_ID'] = creds.access_key
-        env['AWS_SECRET_ACCESS_KEY'] = creds.secret_key
-        env['AWS_SESSION_TOKEN'] = creds.token
+    env['AWS_PROFILE'] = profile
+    env['AWS_DEFAULT_PROFILE'] = profile
+    env['AWS_ACCESS_KEY_ID'] = creds.access_key
+    env['AWS_SECRET_ACCESS_KEY'] = creds.secret_key
+    env['AWS_SESSION_TOKEN'] = creds.token

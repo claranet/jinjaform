@@ -1,7 +1,5 @@
 import errno
 import os
-import subprocess
-import sys
 
 
 def execute(terraform_bin, args, env):
@@ -28,25 +26,3 @@ def execute(terraform_bin, args, env):
                     raise
             else:
                 return exit_status
-
-
-def fmt(terraform_bin, name, _cache={}):
-    """
-    Runs `terraform fmt` on some input text and returns the result.
-
-    """
-
-    if name not in _cache:
-        try:
-            with open(name) as open_file:
-                proc = subprocess.run(
-                    [terraform_bin, 'fmt', '-'],
-                    stdout=subprocess.PIPE,
-                    input=open_file.read().encode('utf-8'),
-                    check=True,
-                )
-        except subprocess.CalledProcessError as error:
-            sys.exit(error.returncode)
-        else:
-            _cache[name] = proc.stdout.decode('utf-8')
-    return _cache[name]

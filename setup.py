@@ -24,5 +24,6 @@ setup(
         'botocore>=1.8.14',
         'colorama',
         'Jinja2',
+        'pyhcl',
     ),
 )
