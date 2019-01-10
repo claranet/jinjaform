@@ -139,6 +139,7 @@ class MultiTemplateRenderer(object):
                 template = Template(
                     open_file.read(),
                     undefined=StrictUndefined,
+                    keep_trailing_newline=True,
                 )
             try:
                 rendered = template.render(**context)
