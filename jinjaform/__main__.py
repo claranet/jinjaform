@@ -1,8 +1,9 @@
 import os
+import subprocess
 import sys
 
-from jinjaform import aws, git, log, terraform, workspace
-from jinjaform.config import args, cwd, env, jinjaform_dir, project_root, terraform_bin
+from jinjaform import aws, git, log, rc, terraform, workspace
+from jinjaform.config import args, cwd, env, project_root, terraform_bin, workspace_dir
 
 
 commands_bypassed = (
@@ -35,7 +36,7 @@ commands_using_backend = (
     'untaint',
 )
 
-workspace_enabled = False
+workspace_required = False
 
 if args:
 
@@ -48,10 +49,47 @@ if args:
                     log.bad('{} not allowed', command)
                     sys.exit(1)
 
-            git.check()
+            workspace_required = True
+
+        else:
+
+            log.bad('not in deployment target directory, aborting')
+            sys.exit(1)
+
+if workspace_required:
+
+    for rc_cmd, rc_arg in rc.read():
+
+        if rc_cmd == 'GIT_CHECK_BRANCH':
+
+            git.check_branch(desired=rc_arg)
+
+        elif rc_cmd == 'GIT_CHECK_CLEAN':
+
+            git.check_clean()
+
+        elif rc_cmd == 'GIT_CHECK_REMOTE':
+
+            git.check_remote()
+
+        elif rc_cmd == 'RUN':
+
+            log.ok('run: {}'.format(rc_arg))
+            returncode = subprocess.call(rc_arg, env=env, shell=True)
+            if returncode != 0:
+                sys.exit(returncode)
+
+        elif rc_cmd == 'TERRAFORM_RUN':
+
+            log.ok('run: terraform')
+            os.chdir(workspace_dir)
+            returncode = terraform.execute(terraform_bin, args, env)
+            if returncode != 0:
+                sys.exit(returncode)
+
+        elif rc_cmd == 'WORKSPACE_CREATE':
 
             workspace.clean()
-            workspace_enabled = True
             workspace.create()
 
             if set(commands_using_backend).intersection(args):
@@ -61,11 +99,12 @@ if args:
 
         else:
 
-            log.bad('not in deployment target directory, aborting')
+            log.bad('configuration: {} is not a valid command', rc_cmd)
             sys.exit(1)
 
-if workspace_enabled:
-    os.chdir(jinjaform_dir)
+else:
 
-log.ok('running terraform')
-sys.exit(terraform.execute(terraform_bin, args, env))
+    log.ok('run: terraform')
+    returncode = terraform.execute(terraform_bin, args, env)
+    if returncode != 0:
+        sys.exit(returncode)

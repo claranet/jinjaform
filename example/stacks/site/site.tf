@@ -1,3 +1,3 @@
 module "site" {
-  source = ".root/site"
+  source = "modules/site"
 }

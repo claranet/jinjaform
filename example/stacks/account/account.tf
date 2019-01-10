@@ -1,7 +1,7 @@
 module "account" {
-  source = ".root/account"
+  source = "modules/account"
 }
 
 module "account-{{ var.envtype }}" {
-  source = ".root/account-{{ var.envtype }}"
+  source = "modules/account-{{ var.envtype }}"
 }

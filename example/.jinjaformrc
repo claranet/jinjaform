@@ -1,0 +1,21 @@
+# Check if the master branch is checked out.
+# Only runs when using the "terraform apply" command.
+GIT_CHECK_BRANCH master
+
+# Check if the git checkout is clean.
+# Only runs when using the "terraform apply" command.
+GIT_CHECK_CLEAN
+
+# Check if the local branch is up to date.
+# Only runs when using the "terraform apply" command.
+GIT_CHECK_REMOTE
+
+# Create the Jinjaform workspace.
+# Runs for all terraform commands except: help, fmt, version
+WORKSPACE_CREATE
+
+# Create symlink to the modules directory for Terraform to use.
+RUN ln -fs "${JINJAFORM_PROJECT_ROOT}/modules" "${JINJAFORM_WORKSPACE}/modules"
+
+# Run terraform.
+TERRAFORM_RUN

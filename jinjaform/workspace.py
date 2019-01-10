@@ -12,7 +12,7 @@ from jinja2 import StrictUndefined, Template
 from jinja2.exceptions import UndefinedError
 
 from jinjaform import log, config
-from jinjaform.config import cwd, env, jinjaform_dir, jinjaform_root, project_root, terraform_dir
+from jinjaform.config import cwd, env, jinjaform_root, project_root, terraform_dir, workspace_dir
 
 from threading import current_thread, Event, Lock, Thread
 
@@ -225,7 +225,7 @@ def _populate():
     # Combine .tfvars files.
     tfvars_files = files.pop('.tfvars', None)
     if tfvars_files:
-        with open(os.path.join(jinjaform_dir, 'terraform.tfvars'), 'w') as output_file:
+        with open(os.path.join(workspace_dir, 'terraform.tfvars'), 'w') as output_file:
             for name, source in reversed(tfvars_files.items()):
                 log.ok('combine: {}', name)
                 with open(source) as source_file:
@@ -242,7 +242,7 @@ def _populate():
             log.ok('render: {}', name)
             template_renderer.add_template(
                 source=source,
-                dest=os.path.join(jinjaform_dir, name),
+                dest=os.path.join(workspace_dir, name),
             )
         success = template_renderer.start()
         if not success:
@@ -253,8 +253,8 @@ def _populate():
         for name, source in files[ext].items():
             log.ok('link: {}', name)
             os.symlink(
-                os.path.relpath(source, jinjaform_dir),
-                os.path.join(jinjaform_dir, name),
+                os.path.relpath(source, workspace_dir),
+                os.path.join(workspace_dir, name),
             )
 
 
@@ -269,20 +269,15 @@ def _remove(path):
 
 
 def clean():
-    if os.path.exists(jinjaform_dir):
-        for name in os.listdir(jinjaform_dir):
+    if os.path.exists(workspace_dir):
+        for name in os.listdir(workspace_dir):
             if name != '.terraform':
-                _remove(os.path.join(jinjaform_dir, name))
+                _remove(os.path.join(workspace_dir, name))
 
 
 def create():
     # Ensure the .jinjaform/.terraform directory exists.
     os.makedirs(terraform_dir, exist_ok=True)
-
-    # Create a .root symlink to the project root directory
-    # so that Terraform code can access it using a relative path.
-    root_link = os.path.join(jinjaform_dir, '.root')
-    os.symlink(project_root, root_link)
 
     # Create a shared modules directory for the entire project.
     module_cache_dir = os.path.join(jinjaform_root, 'modules')
@@ -296,5 +291,5 @@ def create():
     os.makedirs(plugin_cache_dir, exist_ok=True)
     env['TF_PLUGIN_CACHE_DIR'] = plugin_cache_dir
 
-    # Populates workspace with Terraform configuration files.
+    # Populate workspace with Terraform configuration files.
     _populate()
