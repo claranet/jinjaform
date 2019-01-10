@@ -279,11 +279,6 @@ def create():
     # Ensure the .jinjaform/.terraform directory exists.
     os.makedirs(terraform_dir, exist_ok=True)
 
-    # Create a .root symlink to the project root directory
-    # so that Terraform code can access it using a relative path.
-    root_link = os.path.join(workspace_dir, '.root')
-    os.symlink(project_root, root_link)
-
     # Create a shared modules directory for the entire project.
     module_cache_dir = os.path.join(jinjaform_root, 'modules')
     os.makedirs(module_cache_dir, exist_ok=True)

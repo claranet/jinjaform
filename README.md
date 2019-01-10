@@ -8,7 +8,6 @@ Jinjaform is a transparent Terraform wrapper written in Python that adds Jinja2 
     * Allows variable usage where Terraform normally does not, e.g. backends and module source
 * Hierarchical project structure allows for code reuse and deployment-specific files
     * `.tfvars` files are combined into single `terraform.tfvars` for variable value composition
-    * `.root` symlink to Terraform project root directory for relative paths to top level directory, e.g. `.root/modules/module-name` for module sources
 * MFA support for AWS profiles
 * S3 + DynamoDB Terraform backend creation
 * Git checks
