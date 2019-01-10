@@ -13,4 +13,4 @@ This example shows:
     * Defined once at the top level, uses variables to pick the relevant profile
 * S3 + DynamoDB backend
     * Defined once at the top level, uses variables to pick the relevant details
-* `.root` symlink used to reference modules
+* Configuration file `.jinjaformrc` used to create modules symlink

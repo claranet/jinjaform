@@ -14,11 +14,14 @@ for name in ('JINJAFORM_PROJECT_ROOT', 'JINJAFORM_TERRAFORM_BIN'):
         sys.exit(1)
 
 project_root = os.environ['JINJAFORM_PROJECT_ROOT']
-jinjaform_dir = os.path.join(cwd, '.jinjaform')
 jinjaform_root = os.path.join(project_root, '.jinjaform')
 terraform_bin = os.environ['JINJAFORM_TERRAFORM_BIN']
-terraform_dir = os.path.join(jinjaform_dir, '.terraform')
+workspace_dir = os.path.join(cwd, '.jinjaform')
+terraform_dir = os.path.join(workspace_dir, '.terraform')
 
 aws_provider = {}
 s3_backend = {}
 sessions = {}
+
+env['JINJAFORM_PROJECT_ROOT'] = project_root
+env['JINJAFORM_WORKSPACE'] = workspace_dir

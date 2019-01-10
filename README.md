@@ -17,6 +17,8 @@ Jinjaform is a transparent Terraform wrapper written in Python that adds Jinja2 
     * Faster `terraform init/get`
 * Plugin cache enabled by default
     * Faster `terraform init`
+* Hooks for running arbitrary commands
+    * See the [Configuration](#configuration) section
 
 ## Requirements
 
@@ -89,6 +91,55 @@ All `.tfvars` are combined into a single `terraform.tfvars` file which Terraform
 
 See the [example](./example) directory for a more complete example of how a project could be structured.
 
+# Configuration
+
+Jinjaform can optionally be configured by adding a `.jinjaformrc` file in the Terraform project root directory. This file defines the entire Jinjaform workflow.
+
+If this file does not exist, Jinjaform will use the following configuration:
+
+```bash
+# Check if the master branch is checked out.
+# Only runs when using the "terraform apply" command.
+GIT_CHECK_BRANCH master
+
+# Check if the git checkout is clean.
+# Only runs when using the "terraform apply" command.
+GIT_CHECK_CLEAN
+
+# Check if the local branch is up to date.
+# Only runs when using the "terraform apply" command.
+GIT_CHECK_REMOTE
+
+# Create the Jinjaform workspace.
+# Runs for all terraform commands except: help, fmt, version
+WORKSPACE_CREATE
+
+# Run terraform.
+TERRAFORM_RUN
+```
+
+The follow commands can be used:
+
+* `GIT_CHECK_BRANCH <name>`
+    * Errors if the current Git branch is not the one specified.
+* `GIT_CHECK_CLEAN`
+    * Errors if the current Git branch is not clean.
+* `GIT_CHECK_REMOTE`
+    * Errors if the current Git branch is not up to date.
+* `RUN <command>`
+    * Runs a shell command.
+    * Environment variables of note:
+        * `JINJAFORM_PROJECT_ROOT`
+        * `JINJAFORM_WORKSPACE`
+* `TERRAFORM_RUN`
+    * Runs Terraform using the arguments passed into Jinjaform in the workspace directory created by Jinjaform.
+* `WORKSPACE_CREATE`
+    * Creates a workspace directory to be used by Terraform.
+        * Flattens the directory tree.
+        * Renders `.tf` files as Jinja2 templates.
+
+An example of a custom configuration is included in the [example](./example) directory.
+
 ## Gotchas
 
 ### Maximum of 1 AWS profile
@@ -98,7 +149,3 @@ Terraform seems to have a bug where it ignores AWS provider profiles when there 
 ### S3 + DynamoDB backend AWS profile
 
 If the Terraform backend uses S3 + DynamoDB, Jinjaform will create the S3 bucket and DynamoDB table if they do not already exist. Jinjaform will use the AWS profile from the AWS provider block.
-
-### Git checks
-
-It is assumed that the project's Git workflow is to apply Terraform changes from a clean, up-to-date master branch, and it will error if that is not the case. Other workflows are not currently supported but if the Git check fails, instructions for bypassing it are displayed along with the error message.
