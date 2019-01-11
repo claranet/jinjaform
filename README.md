@@ -30,7 +30,7 @@ If you're using [Direnv](https://direnv.net/) then add something like this to yo
 
 ```sh
 layout python3
-pip install -q jinjaform==0.2.0
+pip install -q jinjaform==0.3.0
 PATH_add $(python -m jinjaform.direnv $(pwd)/terraform)
 ```
 
