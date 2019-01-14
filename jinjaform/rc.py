@@ -1,6 +1,6 @@
 import os
 
-from jinjaform import log, config, git
+from jinjaform import log, config
 
 
 default_commands = (
