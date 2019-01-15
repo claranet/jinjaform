@@ -3,7 +3,7 @@ import os
 import shutil
 import sys
 
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 from contextlib import suppress
 
 from itertools import chain
@@ -124,8 +124,9 @@ class MultiTemplateRenderer(object):
         self._threads = set()
         self._var_store = VarStore(self._threads)
         self._errors = []
+        self._rendered = {}
 
-    def _render(self, source, dest):
+    def _render(self, source):
         try:
 
             # Create a variables context for the template to use.
@@ -150,9 +151,8 @@ class MultiTemplateRenderer(object):
                 self._errors.append('{} in {}'.format(error, source))
                 return
 
-            # Write to disk.
-            with open(dest, 'w') as open_file:
-                open_file.write(rendered)
+            # Save rendered templates.
+            self._rendered[source] = rendered
 
             # Parse config.
             parsed = hcl.loads(rendered)
@@ -182,10 +182,10 @@ class MultiTemplateRenderer(object):
         finally:
             self._var_store._thread_done()
 
-    def add_template(self, source, dest):
+    def add_template(self, source):
         self._threads.add(Thread(
             target=self._render,
-            kwargs={'source': source, 'dest': dest},
+            kwargs={'source': source},
         ))
 
     def set_variable_value(self, name, value):
@@ -199,63 +199,117 @@ class MultiTemplateRenderer(object):
             thread.join()
         for error in self._errors:
             log.bad(error)
-        return not bool(self._errors)
+        success = not bool(self._errors)
+        return (success, self._rendered)
 
 
 def _populate():
 
+    # Create a template renderer that can handle multiple files
+    # with variable references between files.
     template_renderer = MultiTemplateRenderer()
 
-    # Discover files to create.
-    files = defaultdict(OrderedDict)
-    seen = set()
+    # Discover files to create in the workspace. Files in multiple
+    # levels of the project directory tree with the same name will
+    # be combined into a single file in the workspace.
+
+    tfvars_files = defaultdict(set)
+    tf_files = defaultdict(set)
+    other_files = defaultdict(set)
+
     current = cwd
     while (current + '/').startswith(project_root + '/'):
         for name in sorted(os.listdir(current)):
-            if name in seen or name.startswith('.'):
+            if name.startswith('.'):
                 continue
             path = os.path.join(current, name)
             if os.path.isdir(path):
                 continue
-            _, ext = os.path.splitext(name)
-            files[ext.lower()][name] = path
-            seen.add(name)
+            name = name.lower()
+            if name.endswith('.tfvars'):
+                tfvars_files[name].add(path)
+            elif name.endswith('.tf'):
+                tf_files[name].add(path)
+            else:
+                other_files[name].add(path)
         current = os.path.dirname(current)
 
-    # Combine .tfvars files.
-    tfvars_files = files.pop('.tfvars', None)
-    if tfvars_files:
-        with open(os.path.join(workspace_dir, 'terraform.tfvars'), 'w') as output_file:
-            for name, source in reversed(tfvars_files.items()):
-                log.ok('combine: {}', name)
-                with open(source) as source_file:
-                    content = source_file.read()
-                output_file.write(content)
+    # Process .tfvars files first, and read their variable values,
+    # because they are required when rendering .tf files.
+
+    for name in sorted(tfvars_files):
+
+        source_paths = sorted(tfvars_files[name])
+        target_path = os.path.join(workspace_dir, name)
+
+        if len(source_paths) == 1:
+            log.ok('copy: {}', name)
+        else:
+            log.ok('combine: {}', name)
+
+        with open(target_path, 'w') as output_file:
+
+            for source_path in source_paths:
+
+                with open(source_path) as source_file:
+                    source_file_contents = source_file.read()
+
+                relative_source_path = os.path.relpath(source_path, project_root)
+                output_file.write('# jinjaform: {}'.format(relative_source_path))
+                output_file.write('\n\n')
+                output_file.write(source_file_contents)
                 output_file.write('\n')
-                for key, value in hcl.loads(content).items():
-                    template_renderer.set_variable_value(key, value)
 
-    # Render .tf files.
-    tf_files = files.pop('.tf', None)
-    if tf_files:
-        for name, source in tf_files.items():
-            log.ok('render: {}', name)
-            template_renderer.add_template(
-                source=source,
-                dest=os.path.join(workspace_dir, name),
-            )
-        success = template_renderer.start()
-        if not success:
-            sys.exit(1)
+                if name == 'terraform.tfvars':
+                    for key, value in hcl.loads(source_file_contents).items():
+                        template_renderer.set_variable_value(key, value)
 
-    # Link any other files.
-    for ext in files:
-        for name, source in files[ext].items():
-            log.ok('link: {}', name)
-            os.symlink(
-                os.path.relpath(source, workspace_dir),
-                os.path.join(workspace_dir, name),
-            )
+    # Process .tf files as templates.
+
+    for name in sorted(tf_files):
+
+        source_paths = sorted(tf_files[name])
+
+        log.ok('render: {}', name)
+
+        for source_path in source_paths:
+            template_renderer.add_template(source_path)
+
+    success, rendered = template_renderer.start()
+    if not success:
+        sys.exit(1)
+
+    for name in sorted(tf_files):
+
+        source_paths = sorted(tf_files[name])
+        target_path = os.path.join(workspace_dir, name)
+
+        with open(target_path, 'w') as output_file:
+
+            for source_path in source_paths:
+
+                relative_source_path = os.path.relpath(source_path, project_root)
+                output_file.write('# jinjaform: {}'.format(relative_source_path))
+                output_file.write('\n\n')
+                output_file.write(rendered[source_path])
+                output_file.write('\n')
+
+    # Process remaining files. Do not add source comments because
+    # the file format is unknown (e.g. json files would break with #).
+    for name in sorted(other_files):
+
+        source_paths = sorted(other_files[name])
+        target_path = os.path.join(workspace_dir, name)
+
+        if len(source_paths) == 1:
+            log.ok('copy: {}', name)
+        else:
+            log.ok('combine: {}', name)
+
+        with open(target_path, 'w') as output_file:
+            for source_path in source_paths:
+                with open(source_path) as source_file:
+                    output_file.write(source_file.read())
 
 
 def _remove(path):
