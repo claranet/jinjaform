@@ -23,21 +23,21 @@ Jinjaform is a transparent Terraform wrapper written in Python that adds Jinja2 
 * Python 3
 * Terraform
 
-## Setup with Direnv
+## Setup
 
-If you're using [Direnv](https://direnv.net/) then add something like this to your `.envrc` file:
+Install Jinjaform with Python pip, .e.g. `pip install jinjaform`.
 
-```sh
-layout python3
-pip install -q jinjaform==0.3.2
-PATH_add $(python -m jinjaform.direnv $(pwd)/terraform)
+Jinjaform requires a `.jinjaformrc` file in the root directory of your Terraform project. When you run `jinjaform` it will look for this file in the current or parent directories. If `.jinjaformrc` is not found in the directory tree, it will suggest running `jinjaform create` to create one. This will create a file that will suit most projects. This file can be [edited to suit your project](#configuration) and should be committed to version control.
+
+If you are using Direnv, and want Jinjaform to run instead of Terraform, add this to your `.envrc` file:
+
+```
+# Run Jinjaform instead of Terraform.
+JINJAFORM_PROJECT_ROOT=terraform
+PATH_add "$(mkdir -p "${JINJAFORM_PROJECT_ROOT}/.jinjaform/bin" && cd $_ && ln -fs $(which jinjaform) terraform && pwd)"
 ```
 
-This will install a `terraform` shim that runs Jinjaform instead of Terraform. The above assumes that you have a `terraform` directory which is considered your "Terraform project root" directory.
-
-## Setup manually
-
-Manual set up has not been fully considered yet.
+The above assumes that `/.envrc` is in the root of your Git repository, and there is a `.jinjaformrc` file in the `/terraform` directory.
 
 ## Project structure
 
@@ -81,7 +81,7 @@ terraform/
             *.tfvars
 ```
 
-If you run `terraform plan` from the `terraform/site/dev` directory, Jinjaform will combine the files from each level (`terraform`, `site`, `dev`) into a single working directory before it executes Terraform.
+If you run `jinjaform plan` from the `terraform/site/dev` directory, Jinjaform will combine the files from each level (`terraform`, `site`, `dev`) into a single working directory before it executes Terraform.
 
 All `.tf` files will be rendered with Jinja2.
 
@@ -91,30 +91,9 @@ See the [example](./example) directory for a more complete example of how a proj
 
 # Configuration
 
-Jinjaform can optionally be configured by adding a `.jinjaformrc` file in the Terraform project root directory. This file defines the entire Jinjaform workflow.
+Jinjaform can configured by editing the `.jinjaformrc` file. This file defines the entire Jinjaform workflow.
 
-If this file does not exist, Jinjaform will use the following configuration:
-
-```bash
-# Check if the master branch is checked out.
-# Only runs when using the "terraform apply" command.
-GIT_CHECK_BRANCH master
-
-# Check if the git checkout is clean.
-# Only runs when using the "terraform apply" command.
-GIT_CHECK_CLEAN
-
-# Check if the local branch is up to date.
-# Only runs when using the "terraform apply" command.
-GIT_CHECK_REMOTE
-
-# Create the Jinjaform workspace.
-# Runs for all terraform commands except: help, fmt, version
-WORKSPACE_CREATE
-
-# Run terraform.
-TERRAFORM_RUN
-```
+Run `jinjaform create` to create a new `.jinjaformrc` file with default commands and then edit the file to suit your project.
 
 The follow commands can be used:
 
