@@ -6,6 +6,14 @@ from jinjaform import aws, git, log, rc, terraform, workspace
 from jinjaform.config import args, cwd, env, project_root, terraform_bin, workspace_dir
 
 
+if 'create' in args:
+    sys.exit(rc.create())
+
+if not project_root:
+    log.bad('could not find .jinjaformrc file in current or parent directories')
+    log.bad('to start a new jinjaform project in the current directory, run "jinjaform create"')
+    sys.exit(1)
+
 commands_bypassed = (
     'fmt',
     'help',
