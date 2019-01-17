@@ -29,6 +29,7 @@ commands_using_backend = (
     'init',
     'output',
     'plan',
+    'providers',
     'refresh',
     'show',
     'state',
