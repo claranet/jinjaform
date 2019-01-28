@@ -32,7 +32,7 @@ def create():
         with open(path, 'x') as open_file:
             open_file.write(default)
     except FileExistsError:
-        log.bad('file already exists')
+        log.bad('.jinjaformrc file already exists')
         return 1
     else:
         log.ok('created {}', path)
