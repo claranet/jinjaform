@@ -15,7 +15,7 @@ $(WHEEL):
 	python setup.py bdist_wheel
 
 .PHONY: build
-build: $(SDIST) $(WHEEL)
+build: clean $(SDIST) $(WHEEL)
 
 .PHONY: install
 install: $(WHEEL)
