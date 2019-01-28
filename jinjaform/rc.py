@@ -36,7 +36,7 @@ def create():
         return 1
     else:
         log.ok('created {}', path)
-        log.ok('your project root directory is {}', path)
+        log.ok('your project root directory is {}', cwd)
         return 0
 
 
