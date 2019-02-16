@@ -7,6 +7,20 @@ def init(_cache=[]):
         _cache.append(True)
 
 
+def accept(question, *args, **kwargs):
+    if args or kwargs:
+        question = question.format(*args, **kwargs)
+    question = '[jinjaform] ' + question + ' [yes/no]: '
+    answer = ''
+    while answer not in ('yes', 'no'):
+        try:
+            answer = input(question).lower()
+        except KeyboardInterrupt:
+            answer = 'no'
+            print()
+    return answer == 'yes'
+
+
 def bad(message, *args, **kwargs):
     init()
     if args or kwargs:

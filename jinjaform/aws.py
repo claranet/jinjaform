@@ -36,12 +36,8 @@ def backend_setup():
 
         if not bucket_exists:
 
-            question = 'create s3://{} in {} [yes/no]: '.format(bucket, region)
-            answer = ''
-            while answer not in ('yes', 'no'):
-                answer = input(question).lower()
-            if answer == 'no':
-                log.ok('backend: bucket not created')
+            if not log.accept('backend: create s3://{} in {}', bucket, region):
+                log.bad('backend: bucket not created')
                 sys.exit(1)
 
             log.ok('backend: creating bucket')
@@ -79,12 +75,8 @@ def backend_setup():
             )
         except dynamodb_client.exceptions.ResourceNotFoundException:
 
-            question = 'create dynamodb://{} in {} [yes/no]: '.format(dynamodb_table, region)
-            answer = ''
-            while answer not in ('yes', 'no'):
-                answer = input(question).lower()
-            if answer == 'no':
-                log.ok('backend: table not created')
+            if not log.accept('backend: create dynamodb://{} in {}', dynamodb_table, region):
+                log.bad('backend: table not created')
                 sys.exit(1)
 
             log.ok('creating table')
