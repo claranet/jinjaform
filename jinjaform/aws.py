@@ -136,8 +136,13 @@ def credentials_setup():
         log.bad('aborted')
         sys.exit(1)
 
-    env['AWS_PROFILE'] = profile
-    env['AWS_DEFAULT_PROFILE'] = profile
-    env['AWS_ACCESS_KEY_ID'] = creds.access_key
-    env['AWS_SECRET_ACCESS_KEY'] = creds.secret_key
-    env['AWS_SESSION_TOKEN'] = creds.token
+    env_vars = {
+        'AWS_PROFILE': profile,
+        'AWS_DEFAULT_PROFILE': profile,
+        'AWS_ACCESS_KEY_ID': creds.access_key,
+        'AWS_SECRET_ACCESS_KEY': creds.secret_key,
+        'AWS_SESSION_TOKEN': creds.token,
+    }
+    for key, value in env_vars.items():
+        if value:
+            env[key] = value
