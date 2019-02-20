@@ -155,7 +155,25 @@ class MultiTemplateRenderer(object):
             self._rendered[source] = rendered
 
             # Parse config.
-            parsed = hcl.loads(rendered)
+            try:
+                parsed = hcl.loads(rendered)
+            except ValueError:
+                parsed = {}
+                in_comment = False
+                for line in rendered:
+                    line = line.lstrip()
+                    if not line:
+                        continue
+                    if line.startswith('/*'):
+                        in_comment = True
+                    elif in_comment:
+                        if line.startswith('*/'):
+                            in_comment = False
+                        elif line.startswith('#'):
+                            continue
+                        else:
+                            log.bad('error parsing {}', source)
+                            break
 
             # Process variables.
             variables = parsed.get('variable', {})
