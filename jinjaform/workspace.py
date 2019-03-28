@@ -8,7 +8,7 @@ from contextlib import suppress
 
 from itertools import chain
 
-from jinja2 import StrictUndefined, Template
+from jinja2 import Environment, StrictUndefined
 from jinja2.exceptions import UndefinedError
 
 from jinjaform import log, config
@@ -125,6 +125,17 @@ class MultiTemplateRenderer(object):
         self._var_store = VarStore(self._threads)
         self._errors = []
         self._rendered = {}
+        self._jinja_environment = self._create_jinja_environment()
+
+    def _create_jinja_environment(self):
+        return Environment(
+            undefined=StrictUndefined,
+            keep_trailing_newline=True,
+            extensions=[
+                'jinja2.ext.do',
+                'jinja2.ext.loopcontrols',
+            ],
+        )
 
     def _render(self, source):
         try:
@@ -137,11 +148,7 @@ class MultiTemplateRenderer(object):
 
             # Render the template.
             with open(source) as open_file:
-                template = Template(
-                    open_file.read(),
-                    undefined=StrictUndefined,
-                    keep_trailing_newline=True,
-                )
+                template = self._jinja_environment.from_string(open_file.read())
             try:
                 rendered = template.render(**context)
             except UndefinedError as error:
