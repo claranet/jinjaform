@@ -1,5 +1,7 @@
 import hcl
+import importlib
 import os
+import pkgutil
 import shutil
 import sys
 
@@ -128,7 +130,9 @@ class MultiTemplateRenderer(object):
         self._jinja_environment = self._create_jinja_environment()
 
     def _create_jinja_environment(self):
-        return Environment(
+
+        # Create a Jina2 Environment.
+        env = Environment(
             undefined=StrictUndefined,
             keep_trailing_newline=True,
             extensions=[
@@ -136,6 +140,25 @@ class MultiTemplateRenderer(object):
                 'jinja2.ext.loopcontrols',
             ],
         )
+
+        # Load custom Jinja2 filters and tests.
+        jinja_path = os.path.join(project_root, '.jinja')
+        if os.path.exists(jinja_path):
+            sys.path.insert(0, jinja_path)
+
+            filters_path = os.path.join(jinja_path, 'filters')
+            for module_finder, name, ispkg in pkgutil.iter_modules(path=[filters_path]):
+                module = importlib.import_module('filters.'+ name)
+                for name in getattr(module, '__all__', []):
+                    env.filters[name] = getattr(module, name)
+
+            tests_path = os.path.join(jinja_path, 'tests')
+            for module_finder, name, ispkg in pkgutil.iter_modules(path=[tests_path]):
+                module = importlib.import_module('tests.'+ name)
+                for name in getattr(module, '__all__', []):
+                    env.tests[name] = getattr(module, name)
+
+        return env
 
     def _render(self, source):
         try:

@@ -17,6 +17,8 @@ Jinjaform is a transparent Terraform wrapper written in Python that adds Jinja2 
     * Faster `terraform init`
 * Hooks for running arbitrary commands
     * See the [Configuration](#configuration) section
+* Custom Jinja2 filters and tests
+    * See the [Customise](#customise) section
 
 ## Requirements
 
@@ -89,7 +91,7 @@ Files in multiple levels of the directory tree with the same name are combined i
 
 See the [example](./example) directory for a more complete example of how a project could be structured.
 
-# Configuration
+## Configuration
 
 Jinjaform can configured by editing the `.jinjaformrc` file. This file defines the entire Jinjaform workflow.
 
@@ -116,6 +118,74 @@ The follow commands can be used:
         * Renders `.tf` files as Jinja2 templates.
 
 An example of a custom configuration is included in the [example](./example) directory.
+
+## Customise
+
+You use [Custom Jinja2 Filters](http://jinja.pocoo.org/docs/2.10/api/#custom-filters) and [Custom Jinja2 Tests](http://jinja.pocoo.org/docs/2.10/api/#custom-tests) in templates.
+
+Create a `.jinja` directory next to your `.jinjaformrc` file. Jinjaform will load custom filters from `.jinja/filters/*.py` and custom tests from `.jinja/tests/*.py`. Function names must be included in the `__all__` list of the containing file for it to be made available in your templates.
+
+### Example custom filters:
+
+```py
+# .jinja/filters/example.py
+
+def double(value):
+    """
+    Doubles the value.
+
+    Usage: "{{ 2 | double }}"
+    Output: "4"
+
+    """
+
+    return value * 2
+
+
+def tf(value):
+    """
+    Wraps the value with Terraform interpolation syntax.
+
+    Usage: "{{ 'module.example.arn' | tf }}"
+    Output: "${module.example.arn}"
+
+    """
+
+    return '${' + value + '}'
+
+
+__all__ = ['double', 'tf']
+```
+
+### Example custom test:
+
+```py
+# .jinja/tests/example.py
+
+def even(value):
+    """
+    Tests if a number is even.
+
+    Usage: {% if 123 is even %}{% endif %}
+
+    """
+
+    return value % 2 == 0
+
+
+def odd(value):
+    """
+    Tests if a number is odd.
+
+    Usage: {% if 123 is odd %}{% endif %}
+
+    """
+
+    return not even(value)
+
+
+__all__ = ['even', 'odd']
+```
 
 ## Gotchas
 
