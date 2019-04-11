@@ -121,9 +121,50 @@ An example of a custom configuration is included in the [example](./example) dir
 
 ## Customise
 
-You use [Custom Jinja2 Filters](http://jinja.pocoo.org/docs/2.10/api/#custom-filters) and [Custom Jinja2 Tests](http://jinja.pocoo.org/docs/2.10/api/#custom-tests) in templates.
+You use [Custom Jinja2 Filters](http://jinja.pocoo.org/docs/2.10/api/#custom-filters) and [Custom Jinja2 Tests](http://jinja.pocoo.org/docs/2.10/api/#custom-tests) and custom context functions/variables in templates.
 
-Create a `.jinja` directory next to your `.jinjaformrc` file. Jinjaform will load custom filters from `.jinja/filters/*.py` and custom tests from `.jinja/tests/*.py`. Function names must be included in the `__all__` list of the containing file for it to be made available in your templates.
+Create a `.jinja` directory next to your `.jinjaformrc` file. Jinjaform will load custom context values from `.jina/context/*.py`, custom filters from `.jinja/filters/*.py`, and custom tests from `.jinja/tests/*.py`. Function/variable names must be included in the `__all__` list of the containing file for it to be made available in your templates.
+
+### Example custom context functions/variables:
+
+```py
+# .jinja/context/example.py
+
+from jinja2 import contextfunction
+
+
+@contextfunction
+def get_var(ctx, name):
+    """
+    Returns a Terraform variable from the context.
+    This is unnecessary as `var` is already in the context,
+    but it shows how to access Terraform variables from a Python function.
+
+    Usage: "{{ get_var(name) }}"
+    Output: the value of the Terraform variable
+
+    """
+
+    return ctx['var'][name]
+
+
+def range(limit):
+    """
+    Returns every number from 0 to the limit.
+
+    Usage: "{% for num in range(10) %}{{ num }}{% endfor %}"
+    Output: [0, 1, 2, ..., limit]
+
+    """
+
+    return range(limit)
+
+
+animals = ['cat', 'dog', 'buffalo']
+
+
+__all__ = ['animals', 'get_var', 'range']
+```
 
 ### Example custom filters:
 
@@ -157,7 +198,7 @@ def tf(value):
 __all__ = ['double', 'tf']
 ```
 
-### Example custom test:
+### Example custom tests:
 
 ```py
 # .jinja/tests/example.py

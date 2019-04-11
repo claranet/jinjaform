@@ -127,6 +127,7 @@ class MultiTemplateRenderer(object):
         self._var_store = VarStore(self._threads)
         self._errors = []
         self._rendered = {}
+        self._jinja_context = {}
         self._jinja_environment = self._create_jinja_environment()
 
     def _create_jinja_environment(self):
@@ -141,10 +142,23 @@ class MultiTemplateRenderer(object):
             ],
         )
 
-        # Load custom Jinja2 filters and tests.
+        # Create a context for the template to use.
+        # Include environment variables and the var store which
+        # exposes the `var.some_name` Terraform variables.
+        # Custom context values will be added below too.
+        self._jinja_context.update(os.environ)
+        self._jinja_context['var'] = self._var_store
+
+        # Load Jinja2 extensions.
         jinja_path = os.path.join(project_root, '.jinja')
         if os.path.exists(jinja_path):
             sys.path.insert(0, jinja_path)
+
+            context_path = os.path.join(jinja_path, 'context')
+            for module_finder, name, ispkg in pkgutil.iter_modules(path=[context_path]):
+                module = importlib.import_module('context.'+ name)
+                for name in getattr(module, '__all__', []):
+                    self._jinja_context[name] = getattr(module, name)
 
             filters_path = os.path.join(jinja_path, 'filters')
             for module_finder, name, ispkg in pkgutil.iter_modules(path=[filters_path]):
@@ -163,17 +177,11 @@ class MultiTemplateRenderer(object):
     def _render(self, source):
         try:
 
-            # Create a variables context for the template to use.
-            # Include environment variables and the var store which
-            # exposes the `var.some_name` Terraform variables.
-            context = os.environ.copy()
-            context['var'] = self._var_store
-
             # Render the template.
             with open(source) as open_file:
                 template = self._jinja_environment.from_string(open_file.read())
             try:
-                rendered = template.render(**context)
+                rendered = template.render(**self._jinja_context)
             except UndefinedError as error:
                 name = self._var_store._get_unresolved_variable()
                 if name:
