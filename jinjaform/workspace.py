@@ -23,16 +23,17 @@ class VarStore(object):
 
     def __init__(self, threads):
 
-        self._threads = threads
-
+        self._running = True
         self._lock = Lock()
-        self._waiters = defaultdict(list)
+        self._threads = threads
+        self._threads_waiting = defaultdict(dict)
+        self._variables_waiting = defaultdict(list)
 
         self._defined = set()
         self._defaults = dict()
         self._values = dict()
 
-        self._unresolved = dict()
+        self._unresolved = defaultdict(set)
 
     def __getitem__(self, key):
         """
@@ -54,26 +55,34 @@ class VarStore(object):
 
         # The variable was not defined, or it was defined without a value,
         # or it was defined but there was a deadlock when resolving it.
-        self._unresolved[current_thread()] = key
+        self._unresolved[current_thread()].add(key)
         raise KeyError(key)
+
+    def _cancel(self):
+        """
+        This function will unblock all threads waiting on a variable,
+        allowing them to continue executing without their variable.
+        They will then have an error because the variable isn't defined.
+
+        """
+
+        self._running = False
+        for event in chain.from_iterable(self._variables_waiting.values()):
+            event.set()
 
     def _check_deadlock(self):
         """
-        Checks if all threads are waiting for a variable to be defined.
-        This means that the variable is not defined, or there is a circular
-        dependency between files that define and use variables.
-
-        If this is the case, then this function will unblock the threads,
-        allowing them to continue executing without their variable. They
-        would then have an error because the variable isn't defined.
+        Checks if there are any free threads. If all threads are blocked
+        waiting for variables to be defined, then no more variables will
+        be defined and the threads will never finish rendering. In that
+        case, cancel rendering and allow errors to be raised.
 
         """
 
-        waiters = list(chain.from_iterable(self._waiters.values()))
-        all_threads_blocked = len(waiters) == len(self._threads)
-        if all_threads_blocked:
-            for event in waiters:
-                event.set()
+        for thread in self._get_free_threads():
+            break
+        else:
+            self._cancel()
 
     def _define_variable(self, name, default):
         """
@@ -85,18 +94,44 @@ class VarStore(object):
             self._defined.add(name)
             if default is not None:
                 self._defaults[name] = default
-                for event in self._waiters.pop(name, []):
-                    event.set()
+            for event in self._variables_waiting.pop(name, []):
+                event.set()
 
-    def _get_unresolved_variable(self):
-        return self._unresolved.get(current_thread())
+    def _get_free_threads(self):
+        """
+        Returns all threads which are not currently waiting for a variable
+        to be defined. These are important when determining if there is
+        a deadlock; if all threads are blocked waiting for variables to
+        be defined, then no more variables will be define and the threads
+        will never unblock by themselves.
+
+        """
+
+        # Return nothing if the rendering has been cancelled.
+        if not self._running:
+            return
+
+        # Check all running threads.
+        for thread in self._threads:
+            for name in self._threads_waiting[thread].values():
+                if name not in self._defined:
+                    # This thread is waiting on a variable which hasn't been
+                    # defined yet, so it is not free.
+                    break
+            else:
+                # This thread is no waiting on any variables that haven't
+                # been defined yet, so it is free.
+                yield thread
+
+    def _get_unresolved_variables(self):
+        return sorted(self._unresolved.get(current_thread(), set()))
 
     def _set_variable_value(self, name, value):
         self._values[name] = value
 
     def _thread_done(self):
         """
-        Removes the current thread and checks for any deadlocks.
+        Removes the current thread and checks for a deadlock.
 
         """
 
@@ -106,18 +141,53 @@ class VarStore(object):
 
     def _wait_for_variable(self, name):
         """
-        Waits for a variable to be defined.
-        Returns immediately if it has already been defined.
+        Waits for a variable to be defined in another template being rendered
+        by another thread. Returns immediately if it is already defined.
 
         """
 
         with self._lock:
+
             if name in self._defined:
                 return
+
+            # Check if there are any other threads that aren't waiting on
+            # a variable. These other threads may end up defining this
+            # variable, or they may not. If there are no free threads
+            # then there is no way for the variable to be defined, so
+            # cancel the rendering and allow an error to be raised.
+            for thread in self._get_free_threads():
+                if thread != current_thread():
+                    break
+            else:
+                self._cancel()
+                return
+
+            # Create an event that will be used to block execution
+            # in this thread until another thread unblocks it.
             event = Event()
-            self._waiters[name].append(event)
-            self._check_deadlock()
+
+            # Add a reference to the event by the variable name.
+            # This allows another thread that defines the variable
+            # to find this thread and unblock it.
+            self._variables_waiting[name].append(event)
+
+            # Add a reference to the event by the thread.
+            # This allows other threads to check if this
+            # thread is blocked or not.
+            self._threads_waiting[current_thread()][event] = name
+
+        # Wait for the variable to be defined,
+        # or for rendering to be cancelled.
         event.wait()
+
+        with self._lock:
+
+            # Remove the reference so this thread can be seen as free.
+            self._threads_waiting[current_thread()].pop(event)
+
+            # Check if the rendering is in a deadlock.
+            self._check_deadlock()
 
 
 class MultiTemplateRenderer(object):
@@ -183,10 +253,9 @@ class MultiTemplateRenderer(object):
             try:
                 rendered = template.render(**self._jinja_context)
             except UndefinedError as error:
-                name = self._var_store._get_unresolved_variable()
-                if name:
+                for name in self._var_store._get_unresolved_variables():
                     error = "'var.{}' cannot be resolved".format(name)
-                self._errors.append('{} in {}'.format(error, source))
+                    self._errors.append('{} in {}'.format(error, source))
                 return
 
             # Save rendered templates.
