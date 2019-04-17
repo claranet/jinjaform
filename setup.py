@@ -16,9 +16,11 @@ setup(
     packages=(
         'jinjaform',
     ),
-    scripts=(
-        'bin/jinjaform',
-    ),
+    entry_points = {
+        'console_scripts': (
+            'jinjaform=jinjaform.__main__:main',
+        ),
+    },
     install_requires=(
         'boto3',
         'botocore>=1.8.14',

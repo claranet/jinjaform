@@ -6,14 +6,6 @@ from jinjaform import aws, git, log, rc, terraform, workspace
 from jinjaform.config import args, cwd, env, project_root, terraform_bin, workspace_dir
 
 
-if 'create' in args:
-    sys.exit(rc.create())
-
-if not project_root:
-    log.bad('could not find .jinjaformrc file in current or parent directories')
-    log.bad('to start a new jinjaform project in the current directory, run "jinjaform create"')
-    sys.exit(1)
-
 commands_bypassed = (
     'fmt',
     'help',
@@ -45,75 +37,90 @@ commands_using_backend = (
     'untaint',
 )
 
-workspace_required = False
 
-if args:
+def main():
 
-    if not set(commands_bypassed).intersection(args):
+    if 'create' in args:
+        sys.exit(rc.create())
 
-        if cwd != project_root and (cwd + '/').startswith(project_root + '/'):
+    if not project_root:
+        log.bad('could not find .jinjaformrc file in current or parent directories')
+        log.bad('to start a new jinjaform project in the current directory, run "jinjaform create"')
+        sys.exit(1)
 
-            for command in commands_forbidden:
-                if command in args:
-                    log.bad('{} not allowed', command)
-                    sys.exit(1)
+    workspace_required = False
 
-            workspace_required = True
+    if args:
 
-        else:
+        if not set(commands_bypassed).intersection(args):
 
-            log.bad('not in deployment target directory, aborting')
-            sys.exit(1)
+            if cwd != project_root and (cwd + '/').startswith(project_root + '/'):
 
-if workspace_required:
+                for command in commands_forbidden:
+                    if command in args:
+                        log.bad('{} not allowed', command)
+                        sys.exit(1)
 
-    for rc_cmd, rc_arg in rc.read():
+                workspace_required = True
 
-        if rc_cmd == 'GIT_CHECK_BRANCH':
+            else:
 
-            git.check_branch(desired=rc_arg)
+                log.bad('not in deployment target directory, aborting')
+                sys.exit(1)
 
-        elif rc_cmd == 'GIT_CHECK_CLEAN':
+    if workspace_required:
 
-            git.check_clean()
+        for rc_cmd, rc_arg in rc.read():
 
-        elif rc_cmd == 'GIT_CHECK_REMOTE':
+            if rc_cmd == 'GIT_CHECK_BRANCH':
 
-            git.check_remote()
+                git.check_branch(desired=rc_arg)
 
-        elif rc_cmd == 'RUN':
+            elif rc_cmd == 'GIT_CHECK_CLEAN':
 
-            log.ok('run: {}'.format(rc_arg))
-            returncode = subprocess.call(rc_arg, env=env, shell=True)
-            if returncode != 0:
-                sys.exit(returncode)
+                git.check_clean()
 
-        elif rc_cmd == 'TERRAFORM_RUN':
+            elif rc_cmd == 'GIT_CHECK_REMOTE':
 
-            log.ok('run: terraform')
-            os.chdir(workspace_dir)
-            returncode = terraform.execute(terraform_bin, args, env)
-            if returncode != 0:
-                sys.exit(returncode)
+                git.check_remote()
 
-        elif rc_cmd == 'WORKSPACE_CREATE':
+            elif rc_cmd == 'RUN':
 
-            workspace.clean()
-            workspace.create()
+                log.ok('run: {}'.format(rc_arg))
+                returncode = subprocess.call(rc_arg, env=env, shell=True)
+                if returncode != 0:
+                    sys.exit(returncode)
 
-            if set(commands_using_backend).intersection(args):
-                aws.credentials_setup()
-                if 'init' in args:
-                    aws.backend_setup()
+            elif rc_cmd == 'TERRAFORM_RUN':
 
-        else:
+                log.ok('run: terraform')
+                os.chdir(workspace_dir)
+                returncode = terraform.execute(terraform_bin, args, env)
+                if returncode != 0:
+                    sys.exit(returncode)
 
-            log.bad('configuration: {} is not a valid command', rc_cmd)
-            sys.exit(1)
+            elif rc_cmd == 'WORKSPACE_CREATE':
 
-else:
+                workspace.clean()
+                workspace.create()
 
-    log.ok('run: terraform')
-    returncode = terraform.execute(terraform_bin, args, env)
-    if returncode != 0:
-        sys.exit(returncode)
+                if set(commands_using_backend).intersection(args):
+                    aws.credentials_setup()
+                    if 'init' in args:
+                        aws.backend_setup()
+
+            else:
+
+                log.bad('configuration: {} is not a valid command', rc_cmd)
+                sys.exit(1)
+
+    else:
+
+        log.ok('run: terraform')
+        returncode = terraform.execute(terraform_bin, args, env)
+        if returncode != 0:
+            sys.exit(returncode)
+
+
+if __name__ == '__main__':
+    main()
