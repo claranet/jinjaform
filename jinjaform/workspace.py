@@ -226,19 +226,19 @@ class MultiTemplateRenderer(object):
 
             context_path = os.path.join(jinja_path, 'context')
             for module_finder, name, ispkg in pkgutil.iter_modules(path=[context_path]):
-                module = importlib.import_module('context.'+ name)
+                module = importlib.import_module('context.' + name)
                 for name in getattr(module, '__all__', []):
                     self._jinja_context[name] = getattr(module, name)
 
             filters_path = os.path.join(jinja_path, 'filters')
             for module_finder, name, ispkg in pkgutil.iter_modules(path=[filters_path]):
-                module = importlib.import_module('filters.'+ name)
+                module = importlib.import_module('filters.' + name)
                 for name in getattr(module, '__all__', []):
                     env.filters[name] = getattr(module, name)
 
             tests_path = os.path.join(jinja_path, 'tests')
             for module_finder, name, ispkg in pkgutil.iter_modules(path=[tests_path]):
-                module = importlib.import_module('tests.'+ name)
+                module = importlib.import_module('tests.' + name)
                 for name in getattr(module, '__all__', []):
                     env.tests[name] = getattr(module, name)
 
