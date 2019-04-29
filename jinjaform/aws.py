@@ -1,10 +1,48 @@
+import boto_source_profile_mfa
 import boto3
-import botocore
-import os
 import sys
+import threading
+
+from functools import lru_cache
 
 from jinjaform import log
-from jinjaform.config import aws_provider, env, s3_backend, sessions
+from jinjaform.config import env
+
+
+aws_provider = {}
+s3_backend = {}
+
+lock = threading.Lock()
+
+
+@lru_cache()
+def _get_session(**kwargs):
+    if 'profile_name' in kwargs:
+        return boto_source_profile_mfa.get_session(**kwargs)
+    else:
+        return boto3.Session(**kwargs)
+
+
+def get_default_session():
+    session_kwargs = {}
+    if aws_provider:
+        terraform_boto_session_map = {
+            'access_key': 'aws_access_key_id',
+            'secret_key': 'aws_secret_access_key',
+            'token': 'aws_session_token',
+            'profile': 'profile_name',
+            'region': 'region_name',
+        }
+        for terraform_key, boto_key in terraform_boto_session_map.items():
+            value = aws_provider.get(terraform_key)
+            if value:
+                session_kwargs[boto_key] = value
+    return get_session(**session_kwargs)
+
+
+def get_session(**kwargs):
+    with lock:
+        return _get_session(**kwargs)
 
 
 def backend_setup():
@@ -18,10 +56,7 @@ def backend_setup():
 
         log.ok('backend: s3://{} in {}', bucket, region)
 
-        if sessions:
-            s3_client = next(iter(sessions.values())).client('s3', region_name=region)
-        else:
-            s3_client = boto3.client('s3', region_name=region)
+        s3_client = get_default_session().client('s3')
 
         try:
             response = s3_client.get_bucket_versioning(
@@ -64,10 +99,7 @@ def backend_setup():
 
         log.ok('backend: dynamodb://{} in {}', dynamodb_table, region)
 
-        if sessions:
-            dynamodb_client = next(iter(sessions.values())).client('dynamodb', region_name=region)
-        else:
-            dynamodb_client = boto3.client('dynamodb', region_name=region)
+        dynamodb_client = get_default_session().client('dynamodb')
 
         try:
             dynamodb_client.describe_table(
@@ -101,22 +133,12 @@ def backend_setup():
 def credentials_setup():
     """
     Sets up AWS credentials using Terraform AWS provider blocks.
-
     """
 
-    profile = aws_provider.get('profile')
-    if not profile:
+    if not aws_provider:
         return
 
-    log.ok('aws-profile: {}', profile)
-
-    botocore_session = botocore.session.Session(profile=profile)
-    cli_cache_path = os.path.join(os.path.expanduser('~'), '.aws/cli/cache')
-    cli_cache = botocore.credentials.JSONFileCache(cli_cache_path)
-    botocore_session.get_component('credential_provider').get_provider('assume-role').cache = cli_cache
-    session = boto3.Session(botocore_session=botocore_session)
-
-    sessions[profile] = session
+    session = get_default_session()
 
     try:
         creds = session.get_credentials().get_frozen_credentials()
@@ -126,8 +148,6 @@ def credentials_setup():
         sys.exit(1)
 
     env_vars = {
-        'AWS_PROFILE': profile,
-        'AWS_DEFAULT_PROFILE': profile,
         'AWS_ACCESS_KEY_ID': creds.access_key,
         'AWS_SECRET_ACCESS_KEY': creds.secret_key,
         'AWS_SESSION_TOKEN': creds.token,

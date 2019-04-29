@@ -228,12 +228,91 @@ def odd(value):
 __all__ = ['even', 'odd']
 ```
 
-## Gotchas
+## AWS accounts and credentials
 
-### Maximum of 1 AWS profile
+### Simple setup
 
-Terraform seems to have a bug where it ignores AWS provider profiles when there are multiple provider blocks with different profiles. To work around this limitation, ensure that each deployment uses only 1 AWS profile.
+The simplest way to set AWS credentials is like so:
 
-### S3 + DynamoDB backend AWS profile
+```tf
+provider "aws" {
+  allowed_account_ids = ["111111111111"]
+  profile             = "claranet-prod"
+  region              = "eu-west-1"
+}
 
-If the Terraform backend uses S3 + DynamoDB, Jinjaform will create the S3 bucket and DynamoDB table if they do not already exist. Jinjaform will use the AWS profile from the AWS provider block.
+terraform {
+  backend "s3" {
+    region         = "eu-west-1"
+    bucket         = "your-tfstate-bucket"
+    key            = "terraform.tfstate"
+    dynamodb_table = "tfstate"
+    encrypt        = "true"
+  }
+
+  required_version = "0.11.11"
+}
+
+resource "aws_sqs_queue" "prod" {
+  name = "jinjaform-test-prod"
+}
+```
+
+This works because:
+
+* Jinjaform finds the default AWS provider, uses the profile to get AWS credentials, and then exports them as environment variables.
+* Terraform ignores the `profile` argument when credentials are set with environment variables.
+
+Terraform does not ordinarily support profiles with MFA prompts, but Jinjaform does. It also uses [boto-source-profile-mfa](https://github.com/claranet/boto-source-profile-mfa) to cache and reuse MFA tokens.
+
+### Advanced usage
+
+The helper function `aws.session()` is available in templates to work with AWS. This function is mostly a wrapper for [boto3.Session](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/core/session.html) and accepts the same keyword arguments.
+
+The session object returned by this function can be used to get AWS credentials, or even interact with the AWS APIs directly.
+
+Below is an example of how to use `aws.session()` to work with multiple AWS accounts.
+
+```tf
+# Use the production account as the default provider.
+
+provider "aws" {
+  allowed_account_ids = ["111111111111"]
+  profile             = "claranet-prod"
+  region              = "eu-west-1"
+}
+
+terraform {
+  backend "s3" {
+    region         = "eu-west-1"
+    bucket         = "your-tfstate-bucket"
+    key            = "terraform.tfstate"
+    dynamodb_table = "tfstate"
+    encrypt        = "true"
+  }
+
+  required_version = "0.11.11"
+}
+
+resource "aws_sqs_queue" "prod" {
+  name = "jinjaform-test-prod"
+}
+
+# Create another provider to use the nonprod account.
+# {% set nonprod_session = aws.session(profile_name='claranet-nonprod') %}
+# {% set nonprod_creds = nonprod_session.get_credentials().get_frozen_credentials() %}
+
+provider "aws" {
+  alias               = "nonprod"
+  allowed_account_ids = ["222222222222"]
+  access_key          = "{{ nonprod_creds.access_key }}"
+  secret_key          = "{{ nonprod_creds.secret_key }}"
+  token               = "{{ nonprod_creds.token }}"
+  region              = "eu-west-1"
+}
+
+resource "aws_sqs_queue" "nonprod" {
+  provider = "aws.nonprod"
+  name     = "jinjaform-test-nonprod"
+}
+```

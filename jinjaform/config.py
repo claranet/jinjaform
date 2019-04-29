@@ -41,9 +41,5 @@ terraform_bin = find_terraform_bin()
 workspace_dir = os.path.join(cwd, '.jinjaform')
 terraform_dir = os.path.join(workspace_dir, '.terraform')
 
-aws_provider = {}
-s3_backend = {}
-sessions = {}
-
 env['JINJAFORM_PROJECT_ROOT'] = project_root
 env['JINJAFORM_WORKSPACE'] = workspace_dir

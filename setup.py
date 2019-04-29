@@ -22,6 +22,7 @@ setup(
         ),
     },
     install_requires=(
+        'boto-source-profile-mfa>=0.0.4'
         'boto3',
         'botocore>=1.8.14',
         'colorama',

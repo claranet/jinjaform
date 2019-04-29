@@ -2,21 +2,72 @@ import hcl
 import importlib
 import os
 import pkgutil
+import re
 import shutil
 import sys
 
 from collections import defaultdict
 from contextlib import suppress
 
+from functools import partial
+
+from getpass import getpass
+
 from itertools import chain
 
 from jinja2 import Environment, StrictUndefined
 from jinja2.exceptions import UndefinedError
 
-from jinjaform import log, config
+from jinjaform import aws, log
 from jinjaform.config import cwd, env, jinjaform_root, project_root, terraform_dir, workspace_dir
 
+from queue import Queue
+
 from threading import current_thread, Event, Lock, Thread
+
+
+class Prompter(object):
+    """
+    Helper class that allows prompts from background threads
+    to occur in the main thread. This avoids issues with
+    pressing Ctrl-C and having threads fail in the background.
+
+    """
+
+    def __init__(self):
+        self._queue = Queue()
+        self._prompts = {}
+        self._results = {}
+        self._running = True
+
+    def prompt(self, prompt):
+        event = Event()
+        self._prompts[event] = prompt
+        self._queue.put(event)
+        event.wait()
+        result = self._results.get(event, '')
+        if result is KeyboardInterrupt:
+            print()
+            raise KeyboardInterrupt
+        return result
+
+    def start(self):
+        while True:
+            event = self._queue.get()
+            if not event:
+                return
+            if self._running:
+                prompt = self._prompts[event]
+                try:
+                    result = getpass(prompt)
+                except KeyboardInterrupt:
+                    result = KeyboardInterrupt
+                self._results[event] = result
+            event.set()
+
+    def stop(self):
+        self._running = False
+        self._queue.put(None)
 
 
 class VarStore(object):
@@ -196,6 +247,7 @@ class MultiTemplateRenderer(object):
         self._threads = set()
         self._var_store = VarStore(self._threads)
         self._errors = []
+        self._prompter = Prompter()
         self._rendered = {}
         self._jinja_context = {}
         self._jinja_environment = self._create_jinja_environment()
@@ -216,6 +268,11 @@ class MultiTemplateRenderer(object):
         # Include environment variables and the var store which
         # exposes the `var.some_name` Terraform variables.
         # Custom context values will be added below too.
+        self._jinja_context.update({
+            'aws': {
+                'session': partial(aws.get_session, mfa_prompter=self._prompter.prompt),
+            },
+        })
         self._jinja_context.update(os.environ)
         self._jinja_context['var'] = self._var_store
 
@@ -253,9 +310,15 @@ class MultiTemplateRenderer(object):
             try:
                 rendered = template.render(**self._jinja_context)
             except UndefinedError as error:
-                for name in self._var_store._get_unresolved_variables():
+                names = self._var_store._get_unresolved_variables()
+                for name in names:
                     error = "'var.{}' cannot be resolved".format(name)
                     self._errors.append('{} in {}'.format(error, source))
+                if not names:
+                    self._errors.append('{} in {}'.format(error, source))
+                return
+            except KeyboardInterrupt:
+                self._errors.append('interrupted')
                 return
 
             # Save rendered templates.
@@ -288,24 +351,30 @@ class MultiTemplateRenderer(object):
                 default = data.get('default', None)
                 self._var_store._define_variable(name, default)
 
-            # Process AWS providers.
+            # Process the default AWS provider.
             provider = parsed.get('provider')
-            if provider:
-                aws = provider.get('aws')
-                if aws:
-                    config.aws_provider.update(aws)
+            if provider and provider.get('aws'):
+                # pyhcl is broken and merges blocks
+                # so parse them with a custom function.
+                for aws_provider in _parse_aws_providers(rendered):
+                    if not aws_provider.get('alias'):
+                        aws.aws_provider.update(aws_provider)
 
-            # Process S3 backents.
+            # Process the S3 backend.
             terraform = parsed.get('terraform')
             if terraform:
                 backend = terraform.get('backend')
                 if backend:
                     s3 = backend.get('s3')
                     if s3:
-                        config.s3_backend.update(s3)
+                        aws.s3_backend.update(s3)
 
+        except Exception as error:
+            self._errors.append('{} in {}'.format(error, source))
         finally:
             self._var_store._thread_done()
+            if not self._threads:
+                self._prompter.stop()
 
     def add_template(self, source):
         self._threads.add(Thread(
@@ -320,12 +389,37 @@ class MultiTemplateRenderer(object):
         threads = self._threads.copy()
         for thread in threads:
             thread.start()
+        self._prompter.start()
         for thread in threads:
             thread.join()
         for error in self._errors:
             log.bad(error)
         success = not bool(self._errors)
         return (success, self._rendered)
+
+
+def _parse_aws_providers(rendered):
+    blocks = []
+    buffer = []
+    for line in rendered.splitlines():
+        stripped_line = line.strip()
+        if blocks:
+            buffer.append(line)
+            if stripped_line == '}':
+                blocks.pop()
+                if not blocks:
+                    parsed = hcl.loads('\n'.join(buffer))
+                    yield parsed['provider']['aws']
+                    buffer.clear()
+            else:
+                match = re.match(r'^([a-z]+)\s+\{$', stripped_line)
+                if match:
+                    blocks.append(match.group(1))
+        else:
+            match = re.match(r'^(provider\s+"aws")\s+\{$', stripped_line)
+            if match:
+                blocks.append(match.group(1))
+                buffer.append(line)
 
 
 def _populate():

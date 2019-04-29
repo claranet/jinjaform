@@ -1,3 +1,4 @@
+.envsecret
 .jinjaform
 __pycache__
 *.egg-info
