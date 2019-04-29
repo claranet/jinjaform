@@ -21,7 +21,7 @@ commands_forbidden = (
 commands_using_backend = (
     'apply',
     'console',
-    'debug'
+    'debug',
     'destroy',
     'force-unlock',
     'graph',
