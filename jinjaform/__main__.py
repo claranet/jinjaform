@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 
-from jinjaform import aws, git, log, rc, terraform, workspace
+from jinjaform import aws, git, log, rc, terraform, workspace, __version__
 from jinjaform.config import args, cmd, cwd, env, project_root, terraform_bin, workspace_dir
 
 
@@ -22,10 +22,8 @@ def main():
     if cmd == 'create':
         sys.exit(rc.create())
 
-    if not project_root:
-        log.bad('could not find .jinjaformrc file in current or parent directories')
-        log.bad('to start a new jinjaform project in the current directory, run "jinjaform create"')
-        sys.exit(1)
+    if cmd in ('version', '-v', '-version', '--version'):
+        log.ok('version: {}'.format(__version__))
 
     workspace_required = False
 
@@ -36,6 +34,12 @@ def main():
             sys.exit(1)
 
         if cmd not in commands_bypassed:
+
+            if not project_root:
+                log.bad('could not find .jinjaformrc file in current or parent directories')
+                log.bad('to start a new jinjaform project in the current directory, run "jinjaform create"')
+                sys.exit(1)
+
             workspace_required = True
 
     if workspace_required:
