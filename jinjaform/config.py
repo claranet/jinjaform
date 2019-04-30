@@ -5,6 +5,7 @@ from jinjaform import log
 
 
 args = sys.argv[1:]
+cmd = args[0] if args else None
 cwd = os.getcwd()
 env = os.environ.copy()
 

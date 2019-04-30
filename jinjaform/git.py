@@ -3,7 +3,7 @@ import sys
 import subprocess
 
 from jinjaform import log
-from jinjaform.config import args
+from jinjaform.config import cmd
 
 
 def abort():
@@ -17,7 +17,7 @@ def abort():
 
 def check_branch(desired):
 
-    if 'apply' not in args:
+    if cmd != 'apply':
         return
 
     branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).rstrip().decode('utf-8')
@@ -29,7 +29,7 @@ def check_branch(desired):
 
 def check_clean():
 
-    if 'apply' not in args:
+    if cmd != 'apply':
         return
 
     diff = subprocess.check_output(['git', 'status', '--porcelain']).rstrip().decode('utf-8')
@@ -42,7 +42,7 @@ def check_clean():
 
 def check_remote():
 
-    if 'apply' not in args:
+    if cmd != 'apply':
         return
 
     log.ok('git: checking remote')

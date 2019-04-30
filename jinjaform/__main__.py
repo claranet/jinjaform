@@ -3,44 +3,23 @@ import subprocess
 import sys
 
 from jinjaform import aws, git, log, rc, terraform, workspace
-from jinjaform.config import args, cwd, env, project_root, terraform_bin, workspace_dir
+from jinjaform.config import args, cmd, cwd, env, project_root, terraform_bin, workspace_dir
 
 
 commands_bypassed = (
     'fmt',
-    'help',
-    '-help',
-    'version',
-    '-version',
+    'help', '-h', '-help', '--help',
+    'version', '-v', '-version', '--version',
 )
 
 commands_forbidden = (
     'push',
 )
 
-commands_using_backend = (
-    'apply',
-    'console',
-    'debug',
-    'destroy',
-    'force-unlock',
-    'graph',
-    'import',
-    'init',
-    'output',
-    'plan',
-    'providers',
-    'refresh',
-    'show',
-    'state',
-    'taint',
-    'untaint',
-)
-
 
 def main():
 
-    if 'create' in args:
+    if cmd == 'create':
         sys.exit(rc.create())
 
     if not project_root:
@@ -50,25 +29,20 @@ def main():
 
     workspace_required = False
 
-    if args:
+    if cmd:
 
-        if not set(commands_bypassed).intersection(args):
+        if cmd in commands_forbidden:
+            log.bad('{} is disabled in jinjaform', cmd)
+            sys.exit(1)
 
-            if cwd != project_root and (cwd + '/').startswith(project_root + '/'):
-
-                for command in commands_forbidden:
-                    if command in args:
-                        log.bad('{} not allowed', command)
-                        sys.exit(1)
-
-                workspace_required = True
-
-            else:
-
-                log.bad('not in deployment target directory, aborting')
-                sys.exit(1)
+        if cmd not in commands_bypassed:
+            workspace_required = True
 
     if workspace_required:
+
+        if cwd == project_root:
+            log.bad('cannot run from the jinjaform project root directory, aborting')
+            sys.exit(1)
 
         for rc_cmd, rc_arg in rc.read():
 
@@ -104,10 +78,10 @@ def main():
                 workspace.clean()
                 workspace.create()
 
-                if set(commands_using_backend).intersection(args):
-                    aws.credentials_setup()
-                    if 'init' in args:
-                        aws.backend_setup()
+                aws.credentials_setup()
+
+                if cmd == 'init':
+                    aws.backend_setup()
 
             else:
 
