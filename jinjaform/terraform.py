@@ -25,4 +25,5 @@ def execute(terraform_bin, args, env):
                     # An actual error occurred.
                     raise
             else:
-                return exit_status
+                exit_code = exit_status >> 8
+                return exit_code
