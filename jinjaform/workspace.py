@@ -412,8 +412,13 @@ def _parse_aws_providers(rendered):
             if stripped_line == '}':
                 blocks.pop()
                 if not blocks:
-                    parsed = hcl.loads('\n'.join(buffer))
-                    yield parsed['provider']['aws']
+                    try:
+                        parsed = hcl.loads('\n'.join(buffer))
+                    except ValueError:
+                        log.bad('Error parsing AWS provider:\n{}', '\n'.join(buffer))
+                        raise
+                    else:
+                        yield parsed['provider']['aws']
                     buffer.clear()
             else:
                 match = re.match(r'^([a-z]+)\s+\{$', stripped_line)
