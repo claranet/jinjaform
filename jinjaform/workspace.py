@@ -5,6 +5,7 @@ import pkgutil
 import re
 import shutil
 import sys
+import traceback
 
 from collections import defaultdict
 from contextlib import suppress
@@ -370,7 +371,10 @@ class MultiTemplateRenderer(object):
                         aws.s3_backend.update(s3)
 
         except Exception as error:
-            self._errors.append('{} in {}'.format(error, source))
+            etype, value, tb = sys.exc_info()
+            print('Traceback (most recent call last):')
+            traceback.print_tb(tb)
+            self._errors.append('{}: {} in {}'.format(etype.__name__, error, source))
         finally:
             self._var_store._thread_done()
             if not self._threads:
