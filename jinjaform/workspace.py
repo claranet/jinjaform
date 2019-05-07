@@ -421,7 +421,7 @@ def _parse_aws_providers(rendered):
                         yield parsed['provider']['aws']
                     buffer.clear()
             else:
-                match = re.match(r'^([a-z]+)\s+\{$', stripped_line)
+                match = re.match(r'^([a-z_]+)\s+\{$', stripped_line)
                 if match:
                     blocks.append(match.group(1))
         else:
